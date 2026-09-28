@@ -419,6 +419,34 @@ async function generateSpec(i) {
   }
 }
 
+function renderAssetsSection(assets) {
+  return assets.length
+    ? assets.map((a, i) => renderAssetBlock(a, i)).join('')
+    : '<div class="mp-empty">No assets recorded yet</div>';
+}
+
+function renderGapsSection(gaps) {
+  return gaps.length
+    ? gaps.map(g => `<div class="gap-row"><span class="mark">&rarr;</span>${escapeHtml(g)}</div>`).join('')
+    : '<div class="mp-empty">No gaps flagged yet</div>';
+}
+
+function renderLadderSection(autonomy) {
+  return TIER_META.map((t, i) => {
+    const items = Object.entries(autonomy).filter(([, tier]) => tier === i);
+    return `
+      <div class="mini-ladder-col">
+        <div class="mini-ladder-head" style="background:${t.color}">${t.label}</div>
+        <div class="mini-ladder-body">${items.map(([label]) => `<div class="mini-ladder-item">${escapeHtml(label)}</div>`).join('')}</div>
+      </div>`;
+  }).join('');
+}
+
+function toggleRawJson() {
+  const el = document.getElementById('rawJsonBlock');
+  if (el) el.hidden = !el.hidden;
+}
+
 function renderManifestPanel() {
   const col = document.getElementById('manifestCol');
   if (!col) return;
@@ -427,31 +455,33 @@ function renderManifestPanel() {
     const json = JSON.stringify(manifest.summary, null, 2);
     col.innerHTML = `
       <div class="manifest-ready-banner">
-        <div class="mp-label">Manifest generated</div>
-        <pre class="manifest-json">${escapeHtml(json)}</pre>
+        <div class="mp-label">Manifest generated — ${manifest.assets.length} asset${manifest.assets.length !== 1 ? 's' : ''}, ${Object.keys(manifest.autonomy).length} autonomy tiers confirmed</div>
+      </div>
+      <div class="mp-section">
+        <div class="mp-label">Assets &amp; connector specs</div>
+        ${renderAssetsSection(manifest.assets)}
+      </div>
+      <div class="mp-section">
+        <div class="mp-label">Gaps addressed</div>
+        ${renderGapsSection(manifest.gaps)}
+      </div>
+      <div class="mp-section">
+        <div class="mp-label">Autonomy tiers</div>
+        <div class="mini-ladder">${renderLadderSection(manifest.autonomy)}</div>
+      </div>
+      <div class="mp-section">
         <button class="btn" onclick="saveManifest()">Save manifest (.json)</button>
         <button class="btn secondary" onclick="restart()" style="margin-left:8px;">Configure another</button>
+        <button class="restart-link" style="margin-left:8px;" onclick="toggleRawJson()">View raw JSON</button>
+        <pre class="manifest-json" id="rawJsonBlock" hidden style="margin-top:10px;">${escapeHtml(json)}</pre>
       </div>
     `;
     return;
   }
 
-  const assetsHtml = manifest.assets.length
-    ? manifest.assets.map((a, i) => renderAssetBlock(a, i)).join('')
-    : '<div class="mp-empty">No assets recorded yet</div>';
-
-  const gapsHtml = manifest.gaps.length
-    ? manifest.gaps.map(g => `<div class="gap-row"><span class="mark">&rarr;</span>${escapeHtml(g)}</div>`).join('')
-    : '<div class="mp-empty">No gaps flagged yet</div>';
-
-  const ladderHtml = TIER_META.map((t, i) => {
-    const items = Object.entries(manifest.autonomy).filter(([, tier]) => tier === i);
-    return `
-      <div class="mini-ladder-col">
-        <div class="mini-ladder-head" style="background:${t.color}">${t.label}</div>
-        <div class="mini-ladder-body">${items.map(([label]) => `<div class="mini-ladder-item">${escapeHtml(label)}</div>`).join('')}</div>
-      </div>`;
-  }).join('');
+  const assetsHtml = renderAssetsSection(manifest.assets);
+  const gapsHtml = renderGapsSection(manifest.gaps);
+  const ladderHtml = renderLadderSection(manifest.autonomy);
 
   col.innerHTML = `
     <div class="mp-section">
