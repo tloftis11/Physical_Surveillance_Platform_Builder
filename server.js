@@ -24,32 +24,30 @@ app.use(express.static(path.join(__dirname, 'public')));
 // URL from running up API costs unattended. Replace with a real store
 // (Redis, Render Postgres) before this sees serious traffic.
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
-const RATE_LIMIT_MAX = 40;
-const hits = new Map(); // ip -> [timestamps]
 
-function rateLimited(ip) {
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const arr = (hits.get(ip) || []).filter(t => t > windowStart);
-  arr.push(now);
-  hits.set(ip, arr);
-  return arr.length > RATE_LIMIT_MAX;
+function makeLimiter(max) {
+  const hits = new Map(); // ip -> [timestamps]
+  return function limited(ip) {
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT_WINDOW_MS;
+    const arr = (hits.get(ip) || []).filter(t => t > windowStart);
+    arr.push(now);
+    hits.set(ip, arr);
+    return arr.length > max;
+  };
 }
 
-// Spec generation now does a web search round-trip before the structured
-// call, which costs more (tokens + Anthropic's per-search fee) than a plain
+const rateLimited = makeLimiter(40);
+
+// Spec generation does a web search round-trip before the structured call,
+// which costs more (tokens + Anthropic's per-search fee) than a plain
 // interview turn — hold it to a tighter budget.
-const SPEC_RATE_LIMIT_MAX = 15;
-const specHits = new Map();
+const specRateLimited = makeLimiter(15);
 
-function specRateLimited(ip) {
-  const now = Date.now();
-  const windowStart = now - RATE_LIMIT_WINDOW_MS;
-  const arr = (specHits.get(ip) || []).filter(t => t > windowStart);
-  arr.push(now);
-  specHits.set(ip, arr);
-  return arr.length > SPEC_RATE_LIMIT_MAX;
-}
+// Fusion-layer generation fans out into several calls at once (schema +
+// one per adapter + one per scenario rule) — the heaviest single action in
+// the app, so it gets the tightest budget.
+const fusionRateLimited = makeLimiter(5);
 
 // ── Structured output contract (forced tool call) ───────────────────────
 const INTERVIEW_TOOL = {
@@ -208,9 +206,178 @@ Be honest about uncertainty: set recognized=false and lower mappingConfidence if
 Respond by calling the generate_asset_spec tool only.`;
 }
 
+// ── Phase 4: fusion layer generation ─────────────────────────────────────
+// Three generation tasks, run in parallel: the Observation store schema
+// (once), an ingestion adapter per physical asset that has a connector spec
+// (Phase 3's output), and a draft correlation rule per scenario in the
+// pack's scenario library. This is deliberately NOT one call producing
+// fusion/correlation logic wholesale — see the rules-first,
+// LLM-escalation-second design: these rules are a fast deterministic path,
+// with an explicit "escalate to the live agent" condition on each one for
+// whatever they can't confidently classify.
+
+const SCHEMA_TOOL = {
+  name: 'generate_observation_schema',
+  description: 'Produce a normalized data-store schema for this deployment\'s Observation stream.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      tables: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            description: { type: 'string' },
+            fields: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  fieldType: { type: 'string', description: 'Postgres type, e.g. timestamptz, text, jsonb, numeric, uuid.' },
+                  notes: { type: 'string' }
+                },
+                required: ['name', 'fieldType']
+              }
+            }
+          },
+          required: ['name', 'fields']
+        }
+      },
+      ddl: { type: 'string', description: 'Complete CREATE TABLE statements (Postgres dialect) for every table above.' },
+      notes: { type: 'string' }
+    },
+    required: ['tables', 'ddl']
+  }
+};
+
+const ADAPTER_TOOL = {
+  name: 'generate_ingestion_adapter',
+  description: 'Produce a draft Node.js ingestion adapter module for one physical asset. This is a DRAFT to be reviewed and tested before use, not production code.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      filename: { type: 'string', description: 'Suggested filename, e.g. adapters/exo2-sonde.js' },
+      code: { type: 'string', description: 'A complete Node.js module exporting a function that connects/parses per the given protocol and yields normalized {timestamp, location, signal_type, payload, confidence} Observation objects. Use env vars for connection config, never hardcoded credentials. Include a prominent comment marking this as untested draft code.' },
+      dependencies: { type: 'array', items: { type: 'string' }, description: 'npm packages this code assumes, e.g. mqtt, modbus-serial.' },
+      assumptions: { type: 'string', description: 'What was assumed or guessed and must be verified against real device/vendor documentation before this runs against a real device.' }
+    },
+    required: ['filename', 'code', 'dependencies', 'assumptions']
+  }
+};
+
+const RULE_TOOL = {
+  name: 'generate_correlation_rule',
+  description: 'Draft one deterministic correlation rule for one scenario in the mission pack\'s scenario library — a fast first-pass rule, not the full reasoning a live fusion agent would apply.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      scenarioName: { type: 'string' },
+      triggerSignals: { type: 'array', items: { type: 'string' }, description: 'Which signal_types or ontology objects this rule watches for.' },
+      condition: { type: 'string', description: 'Plain-English description of the trigger condition — thresholds, trend direction, co-occurrence across sources.' },
+      timeWindowMinutes: { type: 'number' },
+      geographyScope: { type: 'string', description: 'What geographic/venue granularity this correlates within, e.g. "same venue", "same watershed".' },
+      resultingHypothesisCategory: { type: 'string' },
+      baseConfidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+      escalateToAgentWhen: { type: 'string', description: 'The specific condition under which this deterministic rule should hand off to the live LLM Fusion Agent instead of deciding on its own — e.g. partial matches, conflicting signals, novel patterns.' },
+      notes: { type: 'string' }
+    },
+    required: ['scenarioName', 'triggerSignals', 'condition', 'timeWindowMinutes', 'resultingHypothesisCategory', 'baseConfidence', 'escalateToAgentWhen']
+  }
+};
+
+async function generateObservationSchema(pack, assets) {
+  const signalTypes = [...new Set(assets.map(a => a.mappedType || a.description).filter(Boolean))];
+  const system = `You are drafting a normalized data-store schema for a health-event-surveillance deployment's Observation stream. Every signal, regardless of source, normalizes into the same base shape: {timestamp, location, signal_type, payload, confidence}. This deployment extends that base ontology with: ${JSON.stringify(pack.ontologyExtensions)}. Actual assets feeding it: ${JSON.stringify(signalTypes)}. Design a pragmatic schema (a core observations table plus whatever extension tables genuinely earn their place — don't over-normalize for its own sake) and output real Postgres DDL. Respond by calling the generate_observation_schema tool only.`;
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 1400,
+    system,
+    tools: [SCHEMA_TOOL],
+    tool_choice: { type: 'tool', name: 'generate_observation_schema' },
+    messages: [{ role: 'user', content: 'Generate the schema.' }]
+  });
+  const toolUse = response.content.find(b => b.type === 'tool_use');
+  return toolUse ? toolUse.input : null;
+}
+
+async function generateOneAdapter(asset) {
+  const system = `You are drafting an ingestion adapter for one physical sensing asset, based on a connector spec someone already reviewed. Be explicit in the code and in "assumptions" about anything not confirmed. Respond by calling the generate_ingestion_adapter tool only.
+
+ASSET: ${asset.description}
+CONNECTOR SPEC: ${JSON.stringify(asset.spec)}`;
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 1600,
+    system,
+    tools: [ADAPTER_TOOL],
+    tool_choice: { type: 'tool', name: 'generate_ingestion_adapter' },
+    messages: [{ role: 'user', content: 'Generate the adapter.' }]
+  });
+  const toolUse = response.content.find(b => b.type === 'tool_use');
+  return toolUse ? { assetDescription: asset.description, ...toolUse.input } : null;
+}
+
+async function generateOneRule(pack, scenario, assets) {
+  const system = `You are drafting ONE deterministic correlation rule for a health-event-surveillance fusion layer, following a rules-first, LLM-escalation-second design: this rule handles the obvious/fast-path case, and must explicitly say when it should hand off to a live reasoning agent instead of deciding alone. Never let the rule claim high confidence on a partial or ambiguous match — that's exactly what escalateToAgentWhen is for.
+
+MISSION PACK: ${pack.name}
+SCENARIO: ${JSON.stringify(scenario)}
+ASSETS ACTUALLY AVAILABLE IN THIS DEPLOYMENT: ${JSON.stringify(assets.map(a => ({ description: a.description, mappedType: a.mappedType, category: a.category })))}
+
+Respond by calling the generate_correlation_rule tool only.`;
+  const response = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 900,
+    system,
+    tools: [RULE_TOOL],
+    tool_choice: { type: 'tool', name: 'generate_correlation_rule' },
+    messages: [{ role: 'user', content: 'Generate the rule.' }]
+  });
+  const toolUse = response.content.find(b => b.type === 'tool_use');
+  return toolUse ? toolUse.input : null;
+}
+
 // ── Routes ───────────────────────────────────────────────────────────────
 app.get('/api/packs', (req, res) => {
   res.json(PACKS);
+});
+
+app.post('/api/generate-fusion-layer', async (req, res) => {
+  const ip = req.ip || 'unknown';
+  if (fusionRateLimited(ip)) {
+    return res.status(429).json({ error: 'rate_limited', message: 'Fusion layer generation is capped — wait a few minutes and try again.' });
+  }
+
+  const { packId, assets } = req.body || {};
+  const pack = getPack(packId);
+  if (!pack) {
+    return res.status(400).json({ error: 'invalid_request', message: 'Unknown packId.' });
+  }
+  const safeAssets = Array.isArray(assets) ? assets : [];
+  const assetsWithSpecs = safeAssets.filter(a => a && a.spec);
+
+  try {
+    const [schema, adapters, rules] = await Promise.all([
+      generateObservationSchema(pack, safeAssets),
+      Promise.all(assetsWithSpecs.map(a => generateOneAdapter(a).catch(() => null))),
+      Promise.all(pack.scenarioLibrary.map(s => generateOneRule(pack, s, safeAssets).catch(() => null)))
+    ]);
+
+    res.json({
+      schema,
+      adapters: adapters.filter(Boolean),
+      rules: rules.filter(Boolean)
+    });
+  } catch (err) {
+    console.error('generate-fusion-layer error:', err);
+    const status = err && err.status === 429 ? 429 : 500;
+    res.status(status).json({
+      error: status === 429 ? 'rate_limited' : 'upstream_error',
+      message: err && err.message ? err.message : 'Something went wrong reaching Claude.'
+    });
+  }
 });
 
 app.post('/api/generate-asset-spec', async (req, res) => {

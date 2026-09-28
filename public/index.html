@@ -201,6 +201,30 @@ pre.manifest-json {
   padding:12px 14px; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
   overflow-x:auto; max-height:280px; color:var(--text-2); margin:10px 0 12px;
 }
+
+.fusion-wrap { display:flex; flex-direction:column; gap:14px; margin-top:24px; }
+.section-heading {
+  font-family:'Sora',sans-serif; font-weight:800; font-size:17px; letter-spacing:-0.01em;
+  padding-bottom:8px; border-bottom:1px solid var(--border);
+}
+.btn.small { padding:6px 11px; font-size:11.5px; }
+
+.adapter-card, .rule-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:13px 15px; margin-bottom:10px;
+}
+.adapter-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; font-size:13px; }
+.adapter-head code { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--accent); }
+pre.adapter-code { max-height:220px; margin:0; }
+
+.rule-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; font-size:13.5px; }
+.rule-row { font-size:12.5px; color:var(--text-2); margin-bottom:6px; }
+.rule-row b { color:var(--text); }
+.escalate-note {
+  margin-top:8px; padding:8px 11px; font-size:12px; color:var(--text-2);
+  background:var(--surface-alt); border-left:2px solid var(--mode-event); border-radius:2px;
+}
+.escalate-note b { color:var(--mode-event); }
 </style>
 </head>
 <body>
@@ -215,6 +239,7 @@ pre.manifest-json {
   <div id="pickerArea"></div>
   <div id="stageArea"></div>
   <div id="interviewArea"></div>
+  <div id="fusionArea"></div>
 </div>
 
 <script>
@@ -236,6 +261,9 @@ let lastError = null;
 let lastFailedMessage = null;
 let turns = [];
 let manifest = { stage:'framing', assets:[], gaps:[], autonomy:{}, ready:false, summary:null };
+let fusionLayer = null;
+let fusionBusy = false;
+let fusionError = null;
 
 async function loadPacks() {
   try {
@@ -475,7 +503,14 @@ function renderManifestPanel() {
         <button class="restart-link" style="margin-left:8px;" onclick="toggleRawJson()">View raw JSON</button>
         <pre class="manifest-json" id="rawJsonBlock" hidden style="margin-top:10px;">${escapeHtml(json)}</pre>
       </div>
+      <div class="mp-section">
+        <div class="mp-label">Fusion layer <span style="color:var(--text-3); text-transform:none; letter-spacing:0;">(Phase 4 — draft)</span></div>
+        <p class="mp-empty" style="margin-bottom:8px;">Generates a draft Observation store schema, one ingestion adapter per physical asset with a connector spec, and one correlation rule per scenario in this pack.</p>
+        <button class="btn" id="fusionBtn" onclick="generateFusionLayer()" ${fusionBusy ? 'disabled' : ''}>${fusionBusy ? 'Generating fusion layer…' : (fusionLayer ? 'Regenerate fusion layer' : 'Generate fusion layer')}</button>
+        ${fusionError ? `<div class="bubble error" style="margin-top:10px;">${escapeHtml(fusionError)}</div>` : ''}
+      </div>
     `;
+    renderFusionArea();
     return;
   }
 
@@ -499,7 +534,7 @@ function renderManifestPanel() {
   `;
 }
 
-function renderAll() { renderPicker(); renderStageTracker(); renderInterview(); }
+function renderAll() { renderPicker(); renderStageTracker(); renderInterview(); renderFusionArea(); }
 
 function startSetup() {
   if (started || !activePackId) return;
@@ -515,6 +550,9 @@ function restart() {
   manifest = { stage:'framing', assets:[], gaps:[], autonomy:{}, ready:false, summary:null };
   lastError = null;
   lastFailedMessage = undefined;
+  fusionLayer = null;
+  fusionBusy = false;
+  fusionError = null;
   renderAll();
 }
 
@@ -603,15 +641,115 @@ function handleTurnError(e, userMessage, isSessionStart) {
 
 function saveManifest() {
   if (!manifest.summary) return;
-  const blob = new Blob([JSON.stringify(manifest.summary, null, 2)], { type: 'application/json' });
+  downloadText('deployment-manifest.json', JSON.stringify(manifest.summary, null, 2), 'application/json');
+}
+
+function downloadText(filename, text, mimeType) {
+  const blob = new Blob([text], { type: mimeType || 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'deployment-manifest.json';
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+async function generateFusionLayer() {
+  if (fusionBusy) return;
+  fusionBusy = true;
+  fusionError = null;
+  renderInterview();
+
+  try {
+    const res = await fetch('/api/generate-fusion-layer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packId: activePackId, assets: manifest.assets })
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || 'Fusion layer generation failed.');
+    }
+    fusionLayer = await res.json();
+  } catch (e) {
+    fusionError = (e && e.message) || 'Something went wrong generating the fusion layer.';
+  } finally {
+    fusionBusy = false;
+    renderInterview();
+  }
+}
+
+function renderFusionArea() {
+  const area = document.getElementById('fusionArea');
+  if (!area) return;
+  if (!fusionLayer) { area.innerHTML = ''; return; }
+
+  const schemaHtml = fusionLayer.schema
+    ? `
+      <div class="mp-section">
+        <div class="mp-label">Observation store schema</div>
+        <pre class="manifest-json">${escapeHtml(fusionLayer.schema.ddl || '')}</pre>
+        <button class="btn secondary small" onclick="downloadSchema()">Save schema.sql</button>
+      </div>`
+    : '';
+
+  const adaptersHtml = fusionLayer.adapters && fusionLayer.adapters.length
+    ? fusionLayer.adapters.map((a, i) => `
+        <div class="adapter-card">
+          <div class="adapter-head">
+            <div><b>${escapeHtml(a.assetDescription || '')}</b> &rarr; <code>${escapeHtml(a.filename || 'adapter.js')}</code></div>
+            <button class="btn secondary small" onclick='downloadAdapter(${i})'>Save file</button>
+          </div>
+          <div class="hw-chip-row">${(a.dependencies || []).map(d => `<span class="hw-chip">${escapeHtml(d)}</span>`).join('')}</div>
+          <div class="spec-verify" style="margin:6px 0;">${escapeHtml(a.assumptions || '')}</div>
+          <pre class="manifest-json adapter-code">${escapeHtml(a.code || '')}</pre>
+        </div>
+      `).join('')
+    : '<div class="mp-empty">No physical assets had a connector spec to generate an adapter from.</div>';
+
+  const rulesHtml = fusionLayer.rules && fusionLayer.rules.length
+    ? fusionLayer.rules.map(r => `
+        <div class="rule-card">
+          <div class="rule-head">
+            <b>${escapeHtml(r.scenarioName || '')}</b>
+            <span class="conf-badge ${r.baseConfidence === 'high' ? 'high' : r.baseConfidence === 'low' ? 'low' : 'medium'}">${escapeHtml(r.baseConfidence || '')} confidence</span>
+          </div>
+          <div class="hw-chip-row">${(r.triggerSignals || []).map(s => `<span class="hw-chip">${escapeHtml(s)}</span>`).join('')}</div>
+          <div class="rule-row"><b>Condition:</b> ${escapeHtml(r.condition || '')}</div>
+          <div class="rule-row"><b>Window:</b> ${escapeHtml(String(r.timeWindowMinutes || ''))} min &nbsp;&middot;&nbsp; <b>Scope:</b> ${escapeHtml(r.geographyScope || '')}</div>
+          <div class="rule-row"><b>Resulting hypothesis:</b> ${escapeHtml(r.resultingHypothesisCategory || '')}</div>
+          <div class="escalate-note"><b>Escalate to live agent when:</b> ${escapeHtml(r.escalateToAgentWhen || '')}</div>
+        </div>
+      `).join('')
+    : '<div class="mp-empty">No scenarios to draft rules for.</div>';
+
+  area.innerHTML = `
+    <div class="fusion-wrap">
+      <div class="section-heading">Fusion layer (draft — review before use)</div>
+      ${schemaHtml}
+      <div class="mp-section">
+        <div class="mp-label">Ingestion adapters</div>
+        ${adaptersHtml}
+      </div>
+      <div class="mp-section">
+        <div class="mp-label">Correlation rules</div>
+        ${rulesHtml}
+      </div>
+    </div>
+  `;
+}
+
+function downloadAdapter(i) {
+  const a = fusionLayer && fusionLayer.adapters && fusionLayer.adapters[i];
+  if (!a) return;
+  downloadText(a.filename || 'adapter.js', a.code || '', 'text/javascript');
+}
+
+function downloadSchema() {
+  if (!fusionLayer || !fusionLayer.schema) return;
+  downloadText('observation-schema.sql', fusionLayer.schema.ddl || '', 'application/sql');
 }
 
 loadPacks();
