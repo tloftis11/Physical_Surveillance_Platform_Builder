@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deployment Setup Interview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:          #f5f6f9;
+  --surface:     #ffffff;
+  --surface-alt: #eceef3;
+  --border:      #dde1e8;
+  --border-hi:   #c3cad6;
+  --text:        #161a23;
+  --text-2:      #5b6472;
+  --text-3:      #9aa3b0;
+
+  --accent:      #0d7d8f;
+  --accent-tint: rgba(13,125,143,0.08);
+  --accent-b:    rgba(13,125,143,0.28);
+
+  --mode-standing: #2c5f8a;
+  --mode-event:  #b96a2c;
+
+  --tier0: #2f7a52;
+  --tier1: #6a7a3f;
+  --tier2: #a1751e;
+  --tier3: #a4463a;
+
+  --conf-high: #2f7a52;
+  --conf-medium: #a1751e;
+  --conf-low: #a4463a;
+
+  --danger: #a4463a;
+  --danger-tint: rgba(164,70,58,0.08);
+  --danger-b: rgba(164,70,58,0.3);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#12151b; --surface:#181c24; --surface-alt:#1f2430;
+    --border:#2a3140; --border-hi:#3a4356;
+    --text:#e6e9f0; --text-2:#9aa3b5; --text-3:#5f6a7d;
+    --accent:#35b8cc; --accent-tint:rgba(53,184,204,0.1); --accent-b:rgba(53,184,204,0.32);
+    --mode-standing:#6a9bce; --mode-event:#d8933f;
+    --tier0:#4e9c72; --tier1:#94a862; --tier2:#c99a3a; --tier3:#c9695a;
+    --conf-high:#4e9c72; --conf-medium:#c99a3a; --conf-low:#c9695a;
+    --danger:#c9695a; --danger-tint:rgba(201,105,90,0.1); --danger-b:rgba(201,105,90,0.32);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#12151b; --surface:#181c24; --surface-alt:#1f2430;
+  --border:#2a3140; --border-hi:#3a4356;
+  --text:#e6e9f0; --text-2:#9aa3b5; --text-3:#5f6a7d;
+  --accent:#35b8cc; --accent-tint:rgba(53,184,204,0.1); --accent-b:rgba(53,184,204,0.32);
+  --mode-standing:#6a9bce; --mode-event:#d8933f;
+  --tier0:#4e9c72; --tier1:#94a862; --tier2:#c99a3a; --tier3:#c9695a;
+  --conf-high:#4e9c72; --conf-medium:#c99a3a; --conf-low:#c9695a;
+  --danger:#c9695a; --danger-tint:rgba(201,105,90,0.1); --danger-b:rgba(201,105,90,0.32);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Public Sans', system-ui, sans-serif; font-size: 15px; line-height: 1.6;
+  padding-inline: 20px;
+}
+.wrap { max-width: 1080px; margin:0 auto; padding-block: 36px 60px; }
+header { margin-bottom: 26px; }
+.eyebrow { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--accent); margin-bottom:9px; }
+h1 { font-family:'Sora',sans-serif; font-weight:800; font-size:clamp(26px,4vw,34px); letter-spacing:-0.02em; text-wrap:balance; }
+.subtitle { margin-top:9px; color:var(--text-2); max-width:64ch; font-size:14.5px; }
+
+.pack-picker { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
+.pack-pill {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 15px; border-radius:8px; border:1px solid var(--border);
+  background:var(--surface); cursor:pointer; font-family:inherit; color:var(--text);
+  transition: border-color .15s, background .15s;
+}
+.pack-pill:hover:not(:disabled) { border-color:var(--border-hi); }
+.pack-pill.active { border-color:var(--accent); background:var(--accent-tint); }
+.pack-pill:disabled { cursor:not-allowed; opacity:0.6; }
+.pack-pill-name { font-family:'Sora',sans-serif; font-weight:700; font-size:13.5px; }
+.mode-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.mode-dot.standing { background:var(--mode-standing); }
+.mode-dot.event { background:var(--mode-event); }
+
+.start-row { display:flex; align-items:center; gap:14px; margin-bottom:30px; flex-wrap:wrap; }
+.btn {
+  font-family:'Sora',sans-serif; font-weight:700; font-size:13.5px;
+  padding:11px 20px; border-radius:7px; border:1px solid var(--accent);
+  background:var(--accent); color:#fff; cursor:pointer;
+}
+.btn:hover { filter:brightness(1.06); }
+.btn:disabled { opacity:0.55; cursor:not-allowed; }
+.btn.secondary { background:transparent; color:var(--accent); }
+.restart-link {
+  font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-3);
+  background:none; border:none; cursor:pointer; text-decoration:underline;
+}
+.restart-link:hover { color:var(--text-2); }
+
+.stage-tracker { display:flex; gap:6px; margin-bottom:22px; }
+.stage-step {
+  flex:1; text-align:center; padding:8px 4px; border-radius:6px;
+  background:var(--surface); border:1px solid var(--border);
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.04em;
+  color:var(--text-3); text-transform:uppercase;
+}
+.stage-step.done { background:var(--accent-tint); border-color:var(--accent-b); color:var(--accent); }
+.stage-step.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+.interview-shell { display:grid; grid-template-columns: 1.3fr 1fr; gap:20px; align-items:start; }
+@media (max-width: 760px) { .interview-shell { grid-template-columns: 1fr; } }
+.chat-col, .manifest-col { display:flex; flex-direction:column; gap:14px; }
+
+.chat-log {
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:16px; display:flex; flex-direction:column; gap:10px;
+  min-height:340px; max-height:480px; overflow-y:auto;
+}
+.bubble { max-width:88%; padding:10px 13px; border-radius:9px; font-size:13.5px; line-height:1.55; }
+.bubble.agent { align-self:flex-start; background:var(--surface-alt); border:1px solid var(--border); }
+.bubble.user { align-self:flex-end; background:var(--accent-tint); border:1px solid var(--accent-b); }
+.bubble.thinking { align-self:flex-start; background:var(--surface-alt); border:1px solid var(--border); color:var(--text-3); font-family:'IBM Plex Mono',monospace; font-size:12px; display:flex; align-items:center; gap:8px; }
+.bubble.error { align-self:stretch; background:var(--danger-tint); border:1px solid var(--danger-b); color:var(--danger); font-size:12.5px; }
+
+.dot-flicker { display:inline-flex; gap:3px; }
+.dot-flicker span { width:5px; height:5px; border-radius:50%; background:var(--text-3); animation: flicker 1.1s infinite ease-in-out; }
+.dot-flicker span:nth-child(2) { animation-delay:.18s; }
+.dot-flicker span:nth-child(3) { animation-delay:.36s; }
+@keyframes flicker { 0%,80%,100%{opacity:.25;} 40%{opacity:1;} }
+@media (prefers-reduced-motion: reduce) { .dot-flicker span { animation:none; opacity:.6; } }
+
+.chat-input-row { display:flex; gap:8px; }
+.chat-input-row input {
+  flex:1; padding:11px 13px; border-radius:7px; border:1px solid var(--border);
+  background:var(--surface); color:var(--text); font-family:inherit; font-size:13.5px;
+}
+.chat-input-row input:focus { outline:2px solid var(--accent-b); outline-offset:1px; border-color:var(--accent); }
+.stop-link { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-3); background:none; border:none; cursor:pointer; text-decoration:underline; }
+
+.mp-section { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:15px 17px; }
+.mp-label { font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-3); margin-bottom:10px; }
+.mp-empty { font-size:12.5px; color:var(--text-3); font-style:italic; }
+
+.asset-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 0; border-bottom:1px solid var(--border); font-size:12.5px; }
+.asset-row:last-child { border-bottom:none; }
+.asset-desc { color:var(--text); font-weight:500; }
+.asset-map { color:var(--text-3); font-size:11px; }
+.conf-badge { font-family:'IBM Plex Mono',monospace; font-size:9.5px; padding:2px 6px; border-radius:8px; text-transform:uppercase; flex-shrink:0; }
+.conf-badge.high { color:var(--conf-high); background:color-mix(in srgb, var(--conf-high) 12%, transparent); }
+.conf-badge.medium { color:var(--conf-medium); background:color-mix(in srgb, var(--conf-medium) 12%, transparent); }
+.conf-badge.low { color:var(--conf-low); background:color-mix(in srgb, var(--conf-low) 12%, transparent); }
+
+.gap-row { display:flex; gap:8px; font-size:12.5px; color:var(--text-2); padding:5px 0; }
+.gap-row .mark { color:var(--accent); flex-shrink:0; }
+
+.mini-ladder { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.mini-ladder-col { border-radius:5px; overflow:hidden; border:1px solid var(--border); }
+.mini-ladder-head { padding:5px 6px; font-family:'IBM Plex Mono',monospace; font-size:9px; color:#fff; text-align:center; }
+.mini-ladder-body { padding:6px; background:var(--surface); display:flex; flex-direction:column; gap:4px; min-height:30px; }
+.mini-ladder-item { font-size:10.5px; color:var(--text-2); background:var(--surface-alt); border:1px solid var(--border); border-radius:3px; padding:4px 5px; line-height:1.3; }
+
+.top-nav { display:flex; justify-content:flex-end; margin-bottom:6px; }
+.top-nav a { font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-3); text-decoration:underline; }
+.top-nav a:hover { color:var(--text-2); }
+
+.asset-block { padding:9px 0; border-bottom:1px solid var(--border); }
+.asset-block:last-child { border-bottom:none; }
+.hw-chip-row { display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
+.hw-chip { font-family:'IBM Plex Mono',monospace; font-size:10px; padding:2px 7px; border-radius:4px; background:var(--surface-alt); border:1px solid var(--border); color:var(--text-2); }
+.spec-tools { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+.spec-sample {
+  width:100%; min-height:44px; resize:vertical; padding:7px 9px; border-radius:5px;
+  border:1px solid var(--border); background:var(--surface); color:var(--text);
+  font-family:'IBM Plex Mono',monospace; font-size:11px;
+}
+.btn.small { padding:6px 11px; font-size:11.5px; align-self:flex-start; }
+.spec-result { margin-top:8px; padding:9px 11px; background:var(--surface-alt); border:1px solid var(--border); border-radius:6px; font-size:11.5px; color:var(--text-2); }
+.spec-result .spec-row { margin-bottom:5px; }
+.spec-result .spec-row b { color:var(--text); }
+.spec-fields { display:flex; flex-wrap:wrap; gap:5px; margin:5px 0; }
+.spec-field-chip { font-family:'IBM Plex Mono',monospace; font-size:9.5px; padding:2px 6px; border-radius:4px; background:var(--surface); border:1px solid var(--border-hi); color:var(--text-2); }
+.spec-verify { font-style:italic; color:var(--text-3); }
+.spec-result a { color:var(--accent); }
+.recognized-badge { font-family:'IBM Plex Mono',monospace; font-size:9.5px; padding:1px 6px; border-radius:7px; margin-left:6px; }
+.recognized-badge.yes { color:var(--conf-high); background:color-mix(in srgb, var(--conf-high) 12%, transparent); }
+.recognized-badge.no { color:var(--conf-medium); background:color-mix(in srgb, var(--conf-medium) 12%, transparent); }
+
+.manifest-ready-banner { background:var(--accent-tint); border:1px solid var(--accent-b); border-radius:10px; padding:16px 18px; }
+.manifest-ready-banner .mp-label { color:var(--accent); }
+pre.manifest-json {
+  background:var(--surface); border:1px solid var(--border); border-radius:7px;
+  padding:12px 14px; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  overflow-x:auto; max-height:280px; color:var(--text-2); margin:10px 0 12px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top-nav"><a href="/library.html">Browse the mission pack library &rarr;</a></div>
+  <header>
+    <div class="eyebrow">Mission Builder</div>
+    <h1>Deployment Setup Interview</h1>
+    <p class="subtitle">A live, guided conversation that walks through mission framing, asset inventory, gap analysis, and autonomy calibration for a mission pack — producing a real deployment manifest at the end. Physical assets get a generated connector spec (manufacturer, protocol, field mapping) along the way.</p>
+  </header>
+
+  <div id="pickerArea"></div>
+  <div id="stageArea"></div>
+  <div id="interviewArea"></div>
+</div>
+
+<script>
+const TIER_META = [
+  { label:'T0', name:'Auto', color:'var(--tier0)' },
+  { label:'T1', name:'Notify', color:'var(--tier1)' },
+  { label:'T2', name:'Approve', color:'var(--tier2)' },
+  { label:'T3', name:'Advisory', color:'var(--tier3)' }
+];
+const STAGES = ['framing','inventory','gaps','autonomy','summary'];
+const STAGE_LABELS = { framing:'Framing', inventory:'Inventory', gaps:'Gaps', autonomy:'Autonomy', summary:'Summary' };
+
+let PACKS = [];
+let activePackId = null;
+let started = false;
+let busy = false;
+let abortCtl = null;
+let lastError = null;
+let lastFailedMessage = null;
+let turns = [];
+let manifest = { stage:'framing', assets:[], gaps:[], autonomy:{}, ready:false, summary:null };
+
+async function loadPacks() {
+  try {
+    const res = await fetch('/api/packs');
+    PACKS = await res.json();
+    const requested = new URLSearchParams(location.search).get('pack');
+    activePackId = (requested && PACKS.some(p => p.id === requested)) ? requested : (PACKS[0] && PACKS[0].id);
+  } catch (e) {
+    PACKS = [];
+  }
+  renderAll();
+}
+
+function renderPicker() {
+  const area = document.getElementById('pickerArea');
+  if (!PACKS.length) {
+    area.innerHTML = '<p class="mp-empty">Could not load mission packs from the server.</p>';
+    return;
+  }
+  area.innerHTML = `
+    <div class="pack-picker">
+      ${PACKS.map(p => `
+        <button class="pack-pill ${p.id === activePackId ? 'active' : ''}" ${started ? 'disabled' : ''} onclick="choosePack('${p.id}')">
+          <span class="mode-dot ${p.deploymentMode}"></span>
+          <span class="pack-pill-name">${p.name}</span>
+        </button>
+      `).join('')}
+    </div>
+    <div class="start-row">
+      ${!started
+        ? `<button class="btn" onclick="startSetup()">Start guided setup</button>`
+        : `<button class="restart-link" onclick="restart()">&larr; Restart with a different pack</button>`
+      }
+    </div>
+  `;
+}
+
+function choosePack(id) {
+  if (started) return;
+  activePackId = id;
+  renderPicker();
+}
+
+function renderStageTracker() {
+  const area = document.getElementById('stageArea');
+  if (!started) { area.innerHTML = ''; return; }
+  const currentIdx = STAGES.indexOf(manifest.stage);
+  area.innerHTML = `
+    <div class="stage-tracker">
+      ${STAGES.map((s, i) => `<div class="stage-step ${i < currentIdx || manifest.ready ? 'done' : i === currentIdx ? 'active' : ''}">${STAGE_LABELS[s]}</div>`).join('')}
+    </div>
+  `;
+}
+
+function renderInterview() {
+  const area = document.getElementById('interviewArea');
+  if (!started) { area.innerHTML = ''; return; }
+
+  area.innerHTML = `
+    <div class="interview-shell">
+      <div class="chat-col">
+        <div class="chat-log" id="chatLog"></div>
+        ${manifest.ready ? '' : `
+          <div class="chat-input-row">
+            <input type="text" id="chatInput" placeholder="Type your reply…" ${busy ? 'disabled' : ''} autocomplete="off">
+            <button class="btn" id="sendBtn" onclick="submitTurn()" ${busy ? 'disabled' : ''}>Send</button>
+          </div>
+        `}
+      </div>
+      <div class="manifest-col" id="manifestCol"></div>
+    </div>
+  `;
+
+  renderChatLog();
+  renderManifestPanel();
+
+  const input = document.getElementById('chatInput');
+  if (input) {
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitTurn(); } });
+    input.focus();
+  }
+}
+
+function renderChatLog() {
+  const log = document.getElementById('chatLog');
+  if (!log) return;
+  let html = turns.map(t => `<div class="bubble ${t.role === 'user' ? 'user' : 'agent'}">${escapeHtml(t.content)}</div>`).join('');
+  if (busy) {
+    html += `<div class="bubble thinking">Thinking <span class="dot-flicker"><span></span><span></span><span></span></span> <button class="stop-link" onclick="stopCall()">Stop</button></div>`;
+  }
+  if (lastError) {
+    html += `<div class="bubble error">${escapeHtml(lastError)} ${lastFailedMessage !== undefined ? '<button class="stop-link" onclick="retryLast()">Try again</button>' : ''}</div>`;
+  }
+  log.innerHTML = html;
+  log.scrollTop = log.scrollHeight;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function renderAssetBlock(a, i) {
+  const isHardware = a.category !== 'existingFeeds';
+  const hwChips = [];
+  if (a.manufacturer) hwChips.push(`<span class="hw-chip">${escapeHtml(a.manufacturer)}</span>`);
+  if (a.model) hwChips.push(`<span class="hw-chip">${escapeHtml(a.model)}</span>`);
+  if (a.details) hwChips.push(`<span class="hw-chip">${escapeHtml(a.details)}</span>`);
+
+  let specHtml = '';
+  if (isHardware) {
+    if (a.spec) {
+      const s = a.spec;
+      const fieldChips = (s.sampleFields || []).map(f =>
+        `<span class="spec-field-chip">${escapeHtml(f.name)} &rarr; ${escapeHtml(f.mappedObservationField)}</span>`
+      ).join('');
+      specHtml = `
+        <div class="spec-result">
+          <div class="spec-row"><b>Protocol:</b> ${escapeHtml(s.likelyProtocol || 'unknown')}
+            <span class="recognized-badge ${s.recognized ? 'yes' : 'no'}">${s.recognized ? 'recognized device' : 'general estimate'}</span>
+          </div>
+          <div class="spec-row"><b>Data format:</b> ${escapeHtml(s.likelyDataFormat || '')}</div>
+          <div class="spec-fields">${fieldChips}</div>
+          <div class="spec-row"><b>Mapping confidence:</b> ${escapeHtml(s.mappingConfidence || '')}</div>
+          ${(s.sources && s.sources.length) ? `<div class="spec-row"><b>Sources:</b> ${s.sources.map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener">${escapeHtml(u)}</a>`).join(', ')}</div>` : ''}
+          <div class="spec-verify">${escapeHtml(s.verificationNeeded || '')}</div>
+        </div>`;
+    } else {
+      specHtml = `
+        <div class="spec-tools">
+          <textarea class="spec-sample" id="sample-${i}" placeholder="Optional: paste a real data sample from this device for a more accurate spec"></textarea>
+          <button class="btn secondary small" id="specBtn-${i}" onclick="generateSpec(${i})">Generate connector spec</button>
+        </div>`;
+    }
+  }
+
+  return `
+    <div class="asset-block">
+      <div class="asset-row">
+        <div>
+          <div class="asset-desc">${escapeHtml(a.description || '')}</div>
+          <div class="asset-map">${escapeHtml(a.mappedType || a.category || '')}</div>
+          ${hwChips.length ? `<div class="hw-chip-row">${hwChips.join('')}</div>` : ''}
+        </div>
+        <span class="conf-badge ${a.confidence || 'medium'}">${a.confidence || 'medium'}</span>
+      </div>
+      ${specHtml}
+    </div>`;
+}
+
+async function generateSpec(i) {
+  const asset = manifest.assets[i];
+  if (!asset) return;
+  const btn = document.getElementById('specBtn-' + i);
+  const sampleEl = document.getElementById('sample-' + i);
+  const sampleData = sampleEl ? sampleEl.value.trim() : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching & generating…'; }
+
+  try {
+    const res = await fetch('/api/generate-asset-spec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assetDescription: asset.description,
+        category: asset.category,
+        manufacturer: asset.manufacturer,
+        model: asset.model,
+        details: asset.details,
+        sampleData: sampleData || undefined
+      })
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || 'Spec generation failed.');
+    }
+    asset.spec = await res.json();
+    renderManifestPanel();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate connector spec — try again'; }
+  }
+}
+
+function renderManifestPanel() {
+  const col = document.getElementById('manifestCol');
+  if (!col) return;
+
+  if (manifest.ready && manifest.summary) {
+    const json = JSON.stringify(manifest.summary, null, 2);
+    col.innerHTML = `
+      <div class="manifest-ready-banner">
+        <div class="mp-label">Manifest generated</div>
+        <pre class="manifest-json">${escapeHtml(json)}</pre>
+        <button class="btn" onclick="saveManifest()">Save manifest (.json)</button>
+        <button class="btn secondary" onclick="restart()" style="margin-left:8px;">Configure another</button>
+      </div>
+    `;
+    return;
+  }
+
+  const assetsHtml = manifest.assets.length
+    ? manifest.assets.map((a, i) => renderAssetBlock(a, i)).join('')
+    : '<div class="mp-empty">No assets recorded yet</div>';
+
+  const gapsHtml = manifest.gaps.length
+    ? manifest.gaps.map(g => `<div class="gap-row"><span class="mark">&rarr;</span>${escapeHtml(g)}</div>`).join('')
+    : '<div class="mp-empty">No gaps flagged yet</div>';
+
+  const ladderHtml = TIER_META.map((t, i) => {
+    const items = Object.entries(manifest.autonomy).filter(([, tier]) => tier === i);
+    return `
+      <div class="mini-ladder-col">
+        <div class="mini-ladder-head" style="background:${t.color}">${t.label}</div>
+        <div class="mini-ladder-body">${items.map(([label]) => `<div class="mini-ladder-item">${escapeHtml(label)}</div>`).join('')}</div>
+      </div>`;
+  }).join('');
+
+  col.innerHTML = `
+    <div class="mp-section">
+      <div class="mp-label">Assets matched</div>
+      ${assetsHtml}
+    </div>
+    <div class="mp-section">
+      <div class="mp-label">Gaps flagged</div>
+      ${gapsHtml}
+    </div>
+    <div class="mp-section">
+      <div class="mp-label">Autonomy tiers confirmed</div>
+      <div class="mini-ladder">${ladderHtml}</div>
+    </div>
+  `;
+}
+
+function renderAll() { renderPicker(); renderStageTracker(); renderInterview(); }
+
+function startSetup() {
+  if (started || !activePackId) return;
+  started = true;
+  renderAll();
+  sendTurn(null, true);
+}
+
+function restart() {
+  started = false;
+  busy = false;
+  turns = [];
+  manifest = { stage:'framing', assets:[], gaps:[], autonomy:{}, ready:false, summary:null };
+  lastError = null;
+  lastFailedMessage = undefined;
+  renderAll();
+}
+
+function submitTurn() {
+  const input = document.getElementById('chatInput');
+  if (!input || busy) return;
+  const val = input.value.trim();
+  if (!val) return;
+  input.value = '';
+  sendTurn(val, false);
+}
+
+function retryLast() {
+  const msg = lastFailedMessage;
+  const wasSessionStart = msg === undefined;
+  lastError = null;
+  lastFailedMessage = undefined;
+  sendTurn(wasSessionStart ? null : msg, wasSessionStart);
+}
+
+function stopCall() {
+  if (abortCtl) abortCtl.abort();
+}
+
+async function sendTurn(userMessage, isSessionStart) {
+  lastError = null;
+  busy = true;
+  renderInterview();
+
+  abortCtl = new AbortController();
+
+  try {
+    const res = await fetch('/api/interview-turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: abortCtl.signal,
+      body: JSON.stringify({
+        packId: activePackId,
+        isSessionStart: !!isSessionStart,
+        state: { stage: manifest.stage, assets: manifest.assets, gaps: manifest.gaps, autonomy: manifest.autonomy },
+        history: turns,
+        userMessage: userMessage
+      })
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw { code: body.error || 'upstream_error', message: body.message };
+    }
+
+    const data = await res.json();
+
+    if (!isSessionStart) turns.push({ role:'user', content:userMessage });
+    turns.push({ role:'assistant', content: data.reply || '' });
+
+    if (data.stage) manifest.stage = data.stage;
+    (data.assetsFound || []).forEach(a => manifest.assets.push(a));
+    (data.gapsFound || []).forEach(g => { if (!manifest.gaps.includes(g)) manifest.gaps.push(g); });
+    Object.assign(manifest.autonomy, data.autonomySet || {});
+    if (data.manifestReady) {
+      manifest.ready = true;
+      manifest.summary = data.manifestSummary || {};
+      // Use the client-tracked assets (they carry any generated connector specs —
+      // the interview model never saw those, since spec generation is a separate call).
+      manifest.summary.assets = manifest.assets;
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') { /* user hit Stop — no message needed */ }
+    else handleTurnError(e, userMessage, isSessionStart);
+  } finally {
+    busy = false;
+    abortCtl = null;
+    renderAll();
+  }
+}
+
+function handleTurnError(e, userMessage, isSessionStart) {
+  const code = e && e.code;
+  lastFailedMessage = isSessionStart ? undefined : userMessage;
+  if (code === 'rate_limited') {
+    lastError = 'Getting a lot of requests right now — wait a moment and try again.';
+    return;
+  }
+  lastError = (e && e.message) || 'Something went wrong reaching Claude — try again.';
+}
+
+function saveManifest() {
+  if (!manifest.summary) return;
+  const blob = new Blob([JSON.stringify(manifest.summary, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'deployment-manifest.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+loadPacks();
+</script>
+</body>
+</html>

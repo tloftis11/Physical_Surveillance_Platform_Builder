@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Pack Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg:          #f5f6f9;
+  --surface:     #ffffff;
+  --surface-alt: #eceef3;
+  --border:      #dde1e8;
+  --border-hi:   #c3cad6;
+  --text:        #161a23;
+  --text-2:      #5b6472;
+  --text-3:      #9aa3b0;
+
+  --accent:      #0d7d8f;
+  --accent-tint: rgba(13,125,143,0.08);
+  --accent-b:    rgba(13,125,143,0.28);
+
+  --mode-standing: #2c5f8a;
+  --mode-standing-tint: rgba(44,95,138,0.09);
+  --mode-standing-b: rgba(44,95,138,0.3);
+  --mode-event:  #b96a2c;
+  --mode-event-tint: rgba(185,106,44,0.09);
+  --mode-event-b: rgba(185,106,44,0.3);
+
+  --tier0: #2f7a52; --tier1: #6a7a3f; --tier2: #a1751e; --tier3: #a4463a;
+  --ready-mature: #2f7a52; --ready-emerging: #a1751e; --ready-frontier: #a4463a;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#12151b; --surface:#181c24; --surface-alt:#1f2430;
+    --border:#2a3140; --border-hi:#3a4356;
+    --text:#e6e9f0; --text-2:#9aa3b5; --text-3:#5f6a7d;
+    --accent:#35b8cc; --accent-tint:rgba(53,184,204,0.1); --accent-b:rgba(53,184,204,0.32);
+    --mode-standing:#6a9bce; --mode-standing-tint:rgba(106,155,206,0.1); --mode-standing-b:rgba(106,155,206,0.32);
+    --mode-event:#d8933f; --mode-event-tint:rgba(216,147,63,0.1); --mode-event-b:rgba(216,147,63,0.32);
+    --tier0:#4e9c72; --tier1:#94a862; --tier2:#c99a3a; --tier3:#c9695a;
+    --ready-mature:#4e9c72; --ready-emerging:#c99a3a; --ready-frontier:#c9695a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#12151b; --surface:#181c24; --surface-alt:#1f2430;
+  --border:#2a3140; --border-hi:#3a4356;
+  --text:#e6e9f0; --text-2:#9aa3b5; --text-3:#5f6a7d;
+  --accent:#35b8cc; --accent-tint:rgba(53,184,204,0.1); --accent-b:rgba(53,184,204,0.32);
+  --mode-standing:#6a9bce; --mode-standing-tint:rgba(106,155,206,0.1); --mode-standing-b:rgba(106,155,206,0.32);
+  --mode-event:#d8933f; --mode-event-tint:rgba(216,147,63,0.1); --mode-event-b:rgba(216,147,63,0.32);
+  --tier0:#4e9c72; --tier1:#94a862; --tier2:#c99a3a; --tier3:#c9695a;
+  --ready-mature:#4e9c72; --ready-emerging:#c99a3a; --ready-frontier:#c9695a;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Public Sans', system-ui, sans-serif; font-size:15px; line-height:1.6; padding-inline:20px; }
+.wrap { max-width:980px; margin:0 auto; padding-block:36px 64px; }
+
+.top-nav { display:flex; justify-content:flex-end; margin-bottom:6px; }
+.top-nav a { font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-3); text-decoration:underline; }
+.top-nav a:hover { color:var(--text-2); }
+
+header { margin-bottom: 30px; }
+.eyebrow { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+h1 { font-family:'Sora',sans-serif; font-size:clamp(28px,4vw,38px); font-weight:800; letter-spacing:-0.02em; text-wrap:balance; }
+.subtitle { margin-top:10px; color:var(--text-2); max-width:62ch; font-size:14.5px; }
+
+.selector { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:12px; margin-bottom:32px; }
+.pack-card { text-align:left; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:18px 20px; cursor:pointer; font-family:inherit; color:inherit; transition:border-color .15s, box-shadow .15s, background .15s; }
+.pack-card:hover { border-color:var(--border-hi); background:var(--surface-alt); }
+.pack-card.active { border-color:var(--accent); background:var(--accent-tint); box-shadow:0 0 0 1px var(--accent-b); }
+.pack-card-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+.pack-card-name { font-family:'Sora',sans-serif; font-weight:700; font-size:16px; letter-spacing:-0.01em; }
+.pack-card-desc { color:var(--text-2); font-size:13px; line-height:1.55; margin-bottom:12px; }
+.pack-card-stats { display:flex; gap:14px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-3); }
+.pack-card-stats b { color:var(--text-2); font-weight:500; }
+
+.mode-badge { display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:11px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.04em; white-space:nowrap; }
+.mode-badge.standing { color:var(--mode-standing); background:var(--mode-standing-tint); border:1px solid var(--mode-standing-b); }
+.mode-badge.event { color:var(--mode-event); background:var(--mode-event-tint); border:1px solid var(--mode-event-b); }
+.mode-dot { width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; }
+
+.detail { display:flex; flex-direction:column; gap:30px; }
+.detail-head { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:22px 24px; }
+.detail-head-top { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:8px; }
+.detail-name { font-family:'Sora',sans-serif; font-weight:800; font-size:22px; letter-spacing:-0.015em; }
+.detail-desc { color:var(--text-2); font-size:14px; line-height:1.6; max-width:68ch; margin-top:4px; }
+.mode-note { margin-top:12px; padding:10px 13px; background:var(--surface-alt); border-left:2px solid var(--border-hi); border-radius:2px; font-size:12.5px; color:var(--text-2); font-style:italic; }
+.configure-btn { margin-top:14px; }
+.btn { font-family:'Sora',sans-serif; font-weight:700; font-size:13px; padding:10px 18px; border-radius:7px; border:1px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; text-decoration:none; display:inline-block; }
+.btn:hover { filter:brightness(1.06); }
+
+.section-label { font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.13em; text-transform:uppercase; color:var(--text-3); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.section-label .schema-key { color:var(--accent); }
+.section { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:20px 22px; }
+
+.outcomes { display:flex; flex-direction:column; gap:10px; }
+.outcome-card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:15px 17px; }
+.outcome-card.integrating { border-style:dashed; }
+.outcome-top { display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:6px; flex-wrap:wrap; }
+.outcome-name { font-family:'Sora',sans-serif; font-weight:700; font-size:14.5px; }
+.outcome-flag { font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.08em; color:var(--accent); text-transform:uppercase; }
+.outcome-problem { font-size:13px; color:var(--text-2); line-height:1.55; margin-bottom:10px; }
+.outcome-cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:560px) { .outcome-cols { grid-template-columns:1fr; } }
+.outcome-col-label { font-size:10.5px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.06em; color:var(--text-3); margin-bottom:6px; text-transform:uppercase; }
+.tag-row { display:flex; flex-wrap:wrap; gap:5px; }
+.tag { font-size:11.5px; padding:3px 8px; border-radius:4px; background:var(--surface-alt); border:1px solid var(--border); color:var(--text-2); }
+
+.chip-row { display:flex; flex-wrap:wrap; gap:7px; }
+.chip { font-family:'IBM Plex Mono',monospace; font-size:11.5px; padding:5px 11px; border-radius:5px; background:var(--accent-tint); border:1px solid var(--accent-b); color:var(--accent); }
+.chip.plain { background:var(--surface-alt); border-color:var(--border); color:var(--text-2); }
+
+.asset-cols { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+@media (max-width:620px) { .asset-cols { grid-template-columns:1fr; } }
+.asset-col-head { font-family:'Sora',sans-serif; font-weight:700; font-size:13px; margin-bottom:9px; display:flex; align-items:center; gap:7px; }
+.asset-col-head .dot { width:7px; height:7px; border-radius:50%; }
+.asset-list { list-style:none; display:flex; flex-direction:column; gap:6px; }
+.asset-list li { font-size:13px; color:var(--text-2); padding:8px 11px; background:var(--surface); border:1px solid var(--border); border-radius:5px; }
+
+.scenarios { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:10px; }
+.scenario-card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:13px 15px; }
+.scenario-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:7px; }
+.scenario-name { font-family:'Sora',sans-serif; font-weight:700; font-size:13.5px; line-height:1.3; }
+.ready-badge { flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:0.05em; padding:2px 7px; border-radius:9px; text-transform:uppercase; white-space:nowrap; }
+.ready-badge.mature { color:var(--ready-mature); background:color-mix(in srgb, var(--ready-mature) 10%, var(--surface)); border:1px solid color-mix(in srgb, var(--ready-mature) 34%, transparent); }
+.ready-badge.emerging { color:var(--ready-emerging); background:color-mix(in srgb, var(--ready-emerging) 10%, var(--surface)); border:1px solid color-mix(in srgb, var(--ready-emerging) 34%, transparent); }
+.ready-badge.frontier { color:var(--ready-frontier); background:color-mix(in srgb, var(--ready-frontier) 10%, var(--surface)); border:1px solid color-mix(in srgb, var(--ready-frontier) 34%, transparent); }
+.scenario-sensing { font-size:12px; color:var(--text-2); margin-bottom:6px; }
+.scenario-sensing b { color:var(--text); font-weight:600; }
+.scenario-note { font-size:11.5px; color:var(--text-3); font-style:italic; margin-bottom:8px; }
+.scenario-outcomes { display:flex; flex-wrap:wrap; gap:4px; }
+.outcome-pip { font-family:'IBM Plex Mono',monospace; font-size:10px; padding:2px 6px; border-radius:3px; background:var(--surface-alt); border:1px solid var(--border); color:var(--text-3); }
+
+.ladder { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+@media (max-width:700px) { .ladder { grid-template-columns:repeat(2,1fr); } }
+.ladder-col { border-radius:6px; overflow:hidden; border:1px solid var(--border); }
+.ladder-head { padding:9px 11px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:0.05em; color:#fff; }
+.ladder-head .tier-n { display:block; font-size:9px; opacity:0.85; margin-bottom:2px; }
+.ladder-body { padding:10px; background:var(--surface); display:flex; flex-direction:column; gap:6px; min-height:56px; }
+.ladder-item { font-size:11.5px; color:var(--text-2); background:var(--surface-alt); border:1px solid var(--border); border-radius:4px; padding:6px 8px; line-height:1.35; }
+.ladder-empty { font-size:11.5px; color:var(--text-3); padding:6px 2px; }
+.autonomy-rationale { margin-top:14px; padding:11px 14px; background:var(--surface-alt); border-left:2px solid var(--accent); border-radius:2px; font-size:12.5px; color:var(--text-2); }
+
+.gap-list { display:flex; flex-direction:column; gap:8px; }
+.gap-item { display:flex; gap:10px; align-items:flex-start; font-size:13px; color:var(--text-2); }
+.gap-mark { flex-shrink:0; width:18px; height:18px; border-radius:4px; border:1px solid var(--border-hi); display:flex; align-items:center; justify-content:center; margin-top:1px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-3); }
+.mp-empty { font-size:12.5px; color:var(--text-3); font-style:italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top-nav"><a href="/index.html">&larr; Back to Setup Interview</a></div>
+  <header>
+    <div class="eyebrow">Platform Configurator &middot; Phase 1</div>
+    <h1>Mission Pack Library</h1>
+    <p class="subtitle">Pick a mission pack to see exactly what it proposes — mission outcomes, asset types, a starter scenario library, default autonomy tiers, and the questions it will ask you next.</p>
+  </header>
+  <div class="selector" id="selector"></div>
+  <div class="detail" id="detail"></div>
+</div>
+
+<script>
+let PACKS = [];
+let activeId = null;
+
+const TIER_META = [
+  { label:'Tier 0', name:'Autonomous', color:'var(--tier0)' },
+  { label:'Tier 1', name:'Notify', color:'var(--tier1)' },
+  { label:'Tier 2', name:'Approve', color:'var(--tier2)' },
+  { label:'Tier 3', name:'Advisory Only', color:'var(--tier3)' }
+];
+
+function modeBadge(mode) {
+  const cls = mode === 'standing' ? 'standing' : 'event';
+  const label = mode === 'standing' ? 'Standing' : 'Event-Scoped';
+  return `<span class="mode-badge ${cls}"><span class="mode-dot"></span>${label}</span>`;
+}
+function readyBadge(readiness) { return `<span class="ready-badge ${readiness}">${readiness}</span>`; }
+function outcomeName(pack, id) { const o = pack.missionOutcomes.find(o => o.id === id); return o ? o.name : id; }
+
+function renderSelector() {
+  document.getElementById('selector').innerHTML = PACKS.map(p => `
+    <button class="pack-card ${p.id === activeId ? 'active' : ''}" onclick="selectPack('${p.id}')">
+      <div class="pack-card-top">
+        <div class="pack-card-name">${p.name}</div>
+        ${modeBadge(p.deploymentMode)}
+      </div>
+      <div class="pack-card-desc">${p.description}</div>
+      <div class="pack-card-stats">
+        <span><b>${p.missionOutcomes.length}</b> outcome${p.missionOutcomes.length !== 1 ? 's' : ''}</span>
+        <span><b>${p.scenarioLibrary.length}</b> scenarios</span>
+        <span><b>${p.assetTypes.existingFeeds.length + p.assetTypes.deployedSensingKit.length}</b> asset types</span>
+      </div>
+    </button>
+  `).join('');
+}
+
+function renderDetail() {
+  const pack = PACKS.find(p => p.id === activeId);
+  if (!pack) { document.getElementById('detail').innerHTML = ''; return; }
+
+  const outcomesHtml = pack.missionOutcomes.map(o => `
+    <div class="outcome-card ${o.integrating ? 'integrating' : ''}">
+      <div class="outcome-top">
+        <div class="outcome-name">${o.name}</div>
+        ${o.integrating ? '<span class="outcome-flag">Integrating outcome</span>' : ''}
+      </div>
+      <div class="outcome-problem">${o.problem}</div>
+      <div class="outcome-cols">
+        <div><div class="outcome-col-label">Core capabilities</div><div class="tag-row">${o.capabilities.map(c => `<span class="tag">${c}</span>`).join('')}</div></div>
+        <div><div class="outcome-col-label">Outputs</div><div class="tag-row">${o.outputs.map(c => `<span class="tag">${c}</span>`).join('')}</div></div>
+      </div>
+    </div>
+  `).join('');
+
+  const scenariosHtml = pack.scenarioLibrary.map(s => `
+    <div class="scenario-card">
+      <div class="scenario-top"><div class="scenario-name">${s.name}</div>${readyBadge(s.readiness)}</div>
+      <div class="scenario-sensing"><b>Novel sensing:</b> ${s.novelSensing}</div>
+      <div class="scenario-note">${s.readinessNote}</div>
+      <div class="scenario-outcomes">${s.outcomes.map(oid => `<span class="outcome-pip">${outcomeName(pack, oid)}</span>`).join('')}</div>
+    </div>
+  `).join('');
+
+  const ladderHtml = TIER_META.map((t, i) => {
+    const items = Object.entries(pack.autonomyTiers).filter(([, tier]) => tier === i);
+    return `
+      <div class="ladder-col">
+        <div class="ladder-head" style="background:${t.color}"><span class="tier-n">${t.label}</span>${t.name}</div>
+        <div class="ladder-body">${items.length ? items.map(([label]) => `<div class="ladder-item">${label}</div>`).join('') : '<div class="ladder-empty">&mdash;</div>'}</div>
+      </div>`;
+  }).join('');
+
+  const gapHtml = pack.gapChecklist.map(g => `<div class="gap-item"><span class="gap-mark">?</span>${g}</div>`).join('');
+
+  document.getElementById('detail').innerHTML = `
+    <div class="detail-head">
+      <div class="detail-head-top">
+        <div class="detail-name">${pack.name}</div>
+        ${modeBadge(pack.deploymentMode)}
+      </div>
+      <div class="detail-desc">${pack.description}</div>
+      <div class="mode-note">${pack.modeNote}</div>
+      <div class="configure-btn"><a class="btn" href="/index.html?pack=${encodeURIComponent(pack.id)}">Configure this pack &rarr;</a></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Mission Outcomes <span class="schema-key">missionOutcomes</span></div>
+      <div class="outcomes">${outcomesHtml}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Ontology Extensions <span class="schema-key">ontologyExtensions</span></div>
+      <div class="chip-row">${pack.ontologyExtensions.map(o => `<span class="chip">${o}</span>`).join('')}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Typical Asset Types <span class="schema-key">assetTypes</span></div>
+      <div class="asset-cols">
+        <div><div class="asset-col-head"><span class="dot" style="background:var(--text-3)"></span>Existing Feeds</div><ul class="asset-list">${pack.assetTypes.existingFeeds.map(a => `<li>${a}</li>`).join('')}</ul></div>
+        <div><div class="asset-col-head"><span class="dot" style="background:var(--accent)"></span>Deployed Sensing Kit</div><ul class="asset-list">${pack.assetTypes.deployedSensingKit.map(a => `<li>${a}</li>`).join('')}</ul></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Scenario Library <span class="schema-key">scenarioLibrary</span></div>
+      <div class="scenarios">${scenariosHtml}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Default Autonomy Tiers <span class="schema-key">autonomyTiers</span></div>
+      <div class="ladder">${ladderHtml}</div>
+      <div class="autonomy-rationale">${pack.autonomyRationale}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Known Adapter Templates <span class="schema-key">adapterTemplates</span></div>
+      <div class="chip-row">${pack.adapterTemplates.map(a => `<span class="chip plain">${a}</span>`).join('')}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Gap Checklist <span class="schema-key">gapChecklist</span></div>
+      <div class="gap-list">${gapHtml}</div>
+    </div>
+  `;
+}
+
+function selectPack(id) { activeId = id; renderSelector(); renderDetail(); }
+
+async function init() {
+  try {
+    const res = await fetch('/api/packs');
+    PACKS = await res.json();
+    activeId = PACKS[0] && PACKS[0].id;
+  } catch (e) {
+    document.getElementById('selector').innerHTML = '<p class="mp-empty">Could not load mission packs from the server.</p>';
+    return;
+  }
+  renderSelector();
+  renderDetail();
+}
+
+init();
+</script>
+</body>
+</html>

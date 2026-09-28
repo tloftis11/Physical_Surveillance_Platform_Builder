@@ -1,0 +1,19 @@
+{
+  "name": "mission-builder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Guided setup interview for health-event-surveillance mission packs, backed by the Anthropic API.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
